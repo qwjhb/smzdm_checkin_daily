@@ -1,74 +1,73 @@
-# coding: utf-8
-
-import urllib
-import urllib2
+# coding: UTF-8
+import http.cookiejar
+import urllib.request
+import urllib.parse
 import re
-import pdb
-import os
-import cookielib
-import StringIO
-import ConfigParser
-
+import time
+import configparser
 class Smzdm:
-
     def __init__(self):
-        self.cookies = cookielib.CookieJar()
-        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookies))
+        self.cookies = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
         self.headers = {
             'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.124 Safari/537.36',
             'Referer' : 'http://www.smzdm.com/',
             'Origin' : 'http://www.smzdm.com/'
         }
 
-    # 登录
-    def login(self, account):
+    def login(self,account):
         url = "https://zhiyou.smzdm.com/user/login/ajax_check"
-        data = urllib.urlencode({
+        data = urllib.parse.urlencode({
             'username' : account['username'],
             'password' : account['password'],
             'rememberme' : 'on',
             'redirect_url' : 'http://www.smzdm.com'
-        })
-        request = urllib2.Request(url, headers = self.headers, data = data)
+        }).encode()
+        request = urllib.request.Request(url, headers=self.headers, data=data)
         content = self.opener.open(request)
         return content
 
-    # 退出
     def logout(self):
         url = "http://zhiyou.smzdm.com/user/logout"
-        request = urllib2.Request(url, headers = self.headers)
+        request = urllib.request.Request(url, headers=self.headers,)
         self.opener.open(request)
 
-    # 签到
     def checkin(self):
         url = "http://zhiyou.smzdm.com/user/checkin/jsonp_checkin"
-        request = urllib2.Request(url, headers = self.headers)
+        request = urllib.request.Request(url, headers=self.headers)
         self.opener.open(request)
 
-    # 查看是否签到
     def is_checkin(self):
         url = "http://zhiyou.smzdm.com/user/info/jsonp_get_current?"
-        request = urllib2.Request(url, headers = self.headers)
+        request = urllib.request.Request(url, headers = self.headers)
         response = self.opener.open(request)
-        content = response.read()
+        content = response.read().decode('utf-8')
         pattern = re.compile('\"has_checkin\"\:(.*?),')
         item = re.search(pattern, content)
         if item and item.group(1).strip() == 'true':
-            os.system(' var=`date "+%Y-%m-%d %H:%M:%S"`;echo "SUCCEED ${var}" >> log')
+            return 'SUCCEED'
         else:
-            os.system(' var=`date "+%Y-%m-%d %H:%M:%S"`;echo "FAILED ${var}" >> log')
+            return 'FAILED'
+
+
 
     def start_checkin(self):
-        parser = ConfigParser.RawConfigParser()
+        parser = configparser.RawConfigParser()
         parser.read("account.ini")
+        log = open('log.txt','a', newline='')
         for user in parser.sections():
             account = {}
             account['username'] = parser.get(user, 'username')
             account['password'] = parser.get(user, 'password')
             self.login(account)
             self.checkin()
-            self.is_checkin()
+            if self.is_checkin()=='SUCCEED':
+                log.write(time.strftime('%Y-%m-%d',time.localtime(time.time()))+','+ account['username'] +',SUCCEED\n')
+            else:
+                log.write(time.strftime('%Y-%m-%d',time.localtime(time.time()))+','+ account['username'] +',FAILED\n')
             self.logout()
+        log.close()
 
 smzdm = Smzdm()
 smzdm.start_checkin()
+
